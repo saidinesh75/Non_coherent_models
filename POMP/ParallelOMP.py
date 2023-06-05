@@ -13,12 +13,13 @@ import numpy.matlib
 from scipy.io import loadmat
 from sklearn.preprocessing import PolynomialFeatures 
 
+
 rng = np.random.RandomState(seed=None)
 import pickle
 import torch
-from Non_coherent_models.POMP.gen_msg_mod_torch import gen_msg_mod_torch
+from gen_msg_mod_torch import gen_msg_mod_torch
 # from amp_demod_torch2 import amp_demod_torch2
-from Non_coherent_models.POMP.ParallelOMP_demod import ParallelOMP_demod
+from ParallelOMP_demod import ParallelOMP_demod
 
 import pandas as pd
 
@@ -89,7 +90,7 @@ B = torch.from_numpy(A_).type(torch.cdouble).to(device)
 
 A = torch.zeros(n,N).type(torch.cdouble)
 for i in range(n):
-    A[:,(i*n):(i+1)*n] = B[:,torch.arange(1,n,n)]
+    A[:,(i*n):(i+1)*n ] = B[:,torch.arange(i,N,n)]
 
 A = A.to(device)
 
@@ -135,11 +136,11 @@ for l in range(torch.numel(sections)):
         delim[0,i] = delim[1,i-1]+1
         delim[1,i] = delim[1,i-1]+M
 
-    if randomPhase == 2 and L>1:
-        for ii in range(1,L):
-            phase = torch.tensor((ii-1)*torch.pi/(2*L))
-            A[:,int(delim[0,ii]):int(delim[1,ii])] = torch.mul(A[:,int(delim[0,ii]):int(delim[1,ii])],torch.exp(1j*phase))
-        BTB = (A.T).mm(A)
+    # if randomPhase == 2 and L>1:
+    #     for ii in range(1,L):
+    #         phase = torch.tensor((ii-1)*torch.pi/(2*L))
+    #         A[:,int(delim[0,ii]):int(delim[1,ii])] = torch.mul(A[:,int(delim[0,ii]):int(delim[1,ii])],torch.exp(1j*phase))
+    BTB = (A.T).mm(A)
 
     for e in range(torch.numel(EbN0_dB)):
         code_params.update({'EbNo_dB':EbN0_dB[e]})
