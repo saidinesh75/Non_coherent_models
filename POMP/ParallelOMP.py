@@ -3,7 +3,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # BE QUIET!!!! (info and warnings are n
 
 import numpy as np 
 import matplotlib.pyplot as plt
-dir_name = "/home/saidinesh/Research_work/Modulated_SPARCs/Torch_versions/Mod_sparcs_torch_figures/"
+dir_name = "/home/dinesh/Research_work/Non_coherent_models/POMP/POMP_figures/"
 plt.rcParams["savefig.directory"] = os.chdir(os.path.dirname(dir_name))
 
 import math
@@ -12,7 +12,6 @@ import numpy.linalg as la
 import numpy.matlib
 from scipy.io import loadmat
 from sklearn.preprocessing import PolynomialFeatures 
-
 
 rng = np.random.RandomState(seed=None)
 import pickle
@@ -80,7 +79,7 @@ def awgn_channel(in_array, awgn_var, cols,K,rand_seed=None):
 
 device = torch.device('cuda:0') # choose 'cpu' or 'cuda'
 
-data=loadmat("/home/saidinesh/Research_work/Modulated_SPARCs/MUB_2_6.mat")
+data=loadmat("/home/dinesh/Research_work/Modulated_SPARC_codes/MUB_2_6.mat")
 
 A_ = np.array(data['B'])
 n,_ = np.shape(A_)  # (64*4160)
@@ -95,13 +94,13 @@ for i in range(n):
 A = A.to(device)
 
 sections = torch.Tensor([8])               # Number of Sections
-EbN0_dB = torch.Tensor([0,2,4,6])
+EbN0_dB = torch.Tensor([8])
 paths=2
 number_of_seeds=math.floor(math.sqrt(n))
-randomPhase = 2
+randomPhase = 0
 
 cols = 100
-itr = 100
+itr = 10
 
 sec_err_ebno = torch.zeros([torch.numel(sections),torch.numel(EbN0_dB)])
 block_err_ebno = torch.zeros([torch.numel(sections),torch.numel(EbN0_dB)])
@@ -140,7 +139,7 @@ for l in range(torch.numel(sections)):
     #     for ii in range(1,L):
     #         phase = torch.tensor((ii-1)*torch.pi/(2*L))
     #         A[:,int(delim[0,ii]):int(delim[1,ii])] = torch.mul(A[:,int(delim[0,ii]):int(delim[1,ii])],torch.exp(1j*phase))
-    BTB = (A.T).mm(A)
+    BTB = (A.T.conj()).mm(A)
 
     for e in range(torch.numel(EbN0_dB)):
         code_params.update({'EbNo_dB':EbN0_dB[e]})
@@ -157,6 +156,7 @@ for l in range(torch.numel(sections)):
 
         R = bit_len/n  # Rate
         Eb = n*P/bit_len
+        # Eb = L/bit_len
         awgn_var = Eb/Eb_No_linear
         sigma = math.sqrt(awgn_var)
         code_params.update({'awgn_var':awgn_var})
@@ -166,9 +166,8 @@ for l in range(torch.numel(sections)):
         R_actual = bit_len / n      # Actual rate
         code_params.update({'n':n, 'R_actual':R_actual})
         
-        num_sec_errors = torch.zeros((cols,itr))
-        sec_err_rate = torch.zeros((cols,itr))
-        sec_err = 0  
+        sec_err_sum = 0 
+        blk_err_sum = 0 
         
         code_params.update({'no_paths':number_of_paths,
                             'no_seeds':number_of_seeds,
@@ -187,5 +186,23 @@ for l in range(torch.numel(sections)):
             x = torch.mm(A,beta)
             y = awgn_channel(x,awgn_var,cols,K,rand_seed=None)
 
-            beta_hat = ParallelOMP_demod(beta, y, A, code_params, c, delim, cols, BTB)
+            sec_err_rate, blk_err_rate = ParallelOMP_demod(beta, y, A, code_params, c, delim, cols, BTB)
+            sec_err_sum = sec_err_sum + sec_err_rate
+            blk_err_sum = blk_err_sum + blk_err_rate
 
+        sec_err_ebno[l,e] = sec_err_sum/itr
+        block_err_ebno[l,e] = blk_err_sum/itr
+
+np.savetxt("/home/dinesh/Research_work/Non_coherent_models/POMP/POMP_results_csv/SER_1e6.csv", sec_err_ebno.cpu().numpy(), delimiter=",", fmt="%.5e")
+
+fig, ax = plt.subplots()
+ax.plot(EbN0_dB, sec_err_ebno[0,:],label='L=8')
+plt.legend(loc="upper right")
+ax.set_yscale('log')
+ax.set_title('Avg_Section_error_rate vs Eb/N0 for POMP')
+ax.set_xlabel('Eb/N0 (in dB)')
+ax.set_ylabel('Section error rate (SER)') 
+plt.grid(True, which="both") 
+plt.savefig("POMP_SER_1e4.png")   
+
+print("Done")

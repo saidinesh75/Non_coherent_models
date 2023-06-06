@@ -26,7 +26,6 @@ def bin_arr_2_int(bin_array):
     # 1 << np.arange(k)[::-1]      generates vector like [16 8 4 2 1]
     return bin_array.dot(1 << torch.flip(torch.arange(k),[0,]))
 
-
 def psk_constel(K):
     '''
     K-PSK constellation symbols

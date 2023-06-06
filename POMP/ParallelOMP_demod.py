@@ -5,10 +5,11 @@ from torch import nn
 from torch import optim
 from scipy.io import loadmat
 import numpy as np
+import math
 
-y_data = loadmat("/home/saidinesh/Research_work/Non_coherent_models/POMP/rx_signal.mat")
+y_data = loadmat("/home/dinesh/Research_work/Non_coherent_models/POMP/rx_signal.mat")
 
-def pskmodfn(x,c):
+def psdemod(x,c):
     out = torch.zeros(torch.numel(x),dtype=torch.cdouble)
     for i in range(torch.numel(x)):
         out[i] = c(int(x[i]))
@@ -23,7 +24,7 @@ def argmin(y, A):
 
     return x
 
-def pskdemod(modulated_signal, num_phases):
+def pskmod(modulated_signal, num_phases):
     # Compute the phase angles of the modulated signal
     phase_angles = torch.angle(modulated_signal)
 
@@ -52,13 +53,17 @@ def ParallelOMP_demod(beta, y_cols, A, code_params, c, delim, cols, BTB):
     # _,seed_loc1=torch.topk(torch.real(innerProducts),number_of_paths,dim=0)
     # _,seed_max_abs_col=torch.topk(torch.abs(innerProducts),number_of_paths,dim=0)
 
-    rx_columns_final = torch.zeros(L,cols)
-    rx_integers_final = torch.zeros(L,cols)
+    rx_columns_final = torch.zeros(L,cols).to(device)
+    rx_integers_final = torch.zeros(L,cols).to(device)
 
+    # msg_final = torch.zeros(int(L*M),cols).to(device)
+    sec_err = 0
+    blk_err = 0
     for q in range(cols):
         y = y_cols[:,q].reshape(-1,1)
-        y_ = np.array(y_data['rx_signal'])
-        y = torch.from_numpy(y_).reshape(-1,1).type(torch.cdouble).to(device)
+        # Using a pre-determined message just for testing
+        # y_ = np.array(y_data['rx_signal'])
+        # y = torch.from_numpy(y_).reshape(-1,1).type(torch.cdouble).to(device)
 
         innerProducts = (A.T.conj()).matmul(y)
         innerProducts_withSymbols = innerProducts.matmul(c.reshape(1,-1).conj())
@@ -68,8 +73,8 @@ def ParallelOMP_demod(beta, y_cols, A, code_params, c, delim, cols, BTB):
         _,seed_max_abs_col=torch.topk(torch.abs(innerProducts),number_of_paths,dim=0)        
         _,seed_loc2=torch.topk(torch.abs(innerProductsLong),number_of_paths,dim=0)
 
-        selected_integer_matrix=torch.zeros(L,number_of_paths)
-        selected_column_matrix=torch.zeros(L,number_of_paths)
+        selected_integer_matrix=torch.zeros(L,number_of_paths).to(device)
+        selected_column_matrix=torch.zeros(L,number_of_paths).to(device)
         residue=y.repeat(1,number_of_paths)
         
         for p in range(number_of_paths):
@@ -95,16 +100,23 @@ def ParallelOMP_demod(beta, y_cols, A, code_params, c, delim, cols, BTB):
                     innerProducts_copy=torch.mul(innerProducts_copy,mask)
 
             selected_column_matrix[:,p]=torch.cat(rx_columns)
-            selected_integer_matrix[:,p]=pskdemod(rx_symbols,K).reshape([-1,])   
+            selected_integer_matrix[:,p]=pskmod(rx_symbols,K).reshape([-1,])   
         min_residue_loc=torch.argmin(torch.norm(residue))
         rx_columns=selected_column_matrix[:,min_residue_loc]
         rx_integers=selected_integer_matrix[:,min_residue_loc]
 
         [rx_columns_final[:,q],ordr]=torch.sort(rx_columns)
         rx_integers_final[:,q] = rx_integers[ordr]
+        
+        error = torch.numel((~torch.eq(rx_columns_final[:,q],beta[:,q].nonzero().reshape(-1,))).nonzero())
+        sec_err = sec_err + error
+        blk_err = blk_err + math.ceil(error/L)
+        
+    sec_err_rate = sec_err/(L*cols)
+    blk_err_rate = blk_err/(cols)    
+    # print("Done")
 
-
-    # return
+    return sec_err_rate, blk_err_rate
 
 
 
