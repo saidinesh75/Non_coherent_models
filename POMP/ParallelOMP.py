@@ -77,6 +77,14 @@ def awgn_channel(in_array, awgn_var, cols,K,rand_seed=None):
         raise Exception("Unknown input type '{}'".format(in_array.dtype))
     return y   
 
+'''def pilot(beta,delim):
+    beta_c = beta.clone()
+    beta_1 = beta_c[int(delim[0,0]):int(delim[1,0]+1),:]
+    beta_1[beta_1.nonzero()]=1
+    beta_c[int(delim[0,0]):int(delim[1,0]+1),:] = beta_1
+    return beta
+'''
+
 device = torch.device('cuda:0') # choose 'cpu' or 'cuda'
 
 data=loadmat("/home/dinesh/Research_work/Modulated_SPARC_codes/MUB_2_6.mat")
@@ -94,7 +102,7 @@ for i in range(n):
 A = A.to(device)
 
 sections = torch.Tensor([8])               # Number of Sections
-EbN0_dB = torch.Tensor([8])
+EbN0_dB = torch.arange(0,8,2)
 paths=2
 number_of_seeds=math.floor(math.sqrt(n))
 randomPhase = 0
@@ -175,6 +183,7 @@ for l in range(torch.numel(sections)):
         
         for p in range(itr):
             beta,c = gen_msg_mod_torch(code_params,cols)
+            # beta_c = pilot(beta,delim)
             beta = beta.to(device)
             c = c.to(device)
 
@@ -182,7 +191,6 @@ for l in range(torch.numel(sections)):
             # beta_csv = pd.read_csv("/home/saidinesh/Research_work/Modulated_SPARCs/debug_csv_files/beta.csv", sep=",", header=None)
             # beta_np = beta_csv.applymap(lambda s: complex(s.replace('i', 'j'))).values
             # beta =  torch.from_numpy(beta_np).type(torch.cdouble).to(device)
-            
             x = torch.mm(A,beta)
             y = awgn_channel(x,awgn_var,cols,K,rand_seed=None)
 
@@ -203,6 +211,6 @@ ax.set_title('Avg_Section_error_rate vs Eb/N0 for POMP')
 ax.set_xlabel('Eb/N0 (in dB)')
 ax.set_ylabel('Section error rate (SER)') 
 plt.grid(True, which="both") 
-plt.savefig("POMP_SER_1e4.png")   
+plt.savefig("POMP_SER_1e3.png")   
 
 print("Done")

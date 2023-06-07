@@ -93,12 +93,15 @@ def gen_msg_mod_torch(code_params,cols):
 
     for i in range(cols):
         bits_in = torch.randint(2, size=[bit_len])
+        
         if K==1 or K==2:
             beta0 = torch.zeros(N)    #length of msg_vector = 1000 * 32 = 32000
         else:
             beta0 = torch.zeros(N, dtype=torch.cdouble)
 
         for l in range(L):
+            # if l == 0:
+            #     bits_sec = torch.zeros(logM)
             bits_sec = bits_in[l*sec_size : l*sec_size + logM]  # logM bits used for selection the location of non-zero values
             assert 0<logM<64
             idx = bits_sec.dot(1 << torch.flip(torch.arange(logM),[0,]))
