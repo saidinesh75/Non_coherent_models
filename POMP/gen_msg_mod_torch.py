@@ -90,18 +90,22 @@ def gen_msg_mod_torch(code_params,cols):
         sec_size = logM + logK
 
     beta = torch.zeros((N,cols),dtype=torch.cdouble) if K>2 else torch.zeros((N,cols))
+    beta1 = torch.zeros((N,cols),dtype=torch.cdouble) if K>2 else torch.zeros((N,cols))  # for beta with first block containing 1
+
+    ###... generating first block of pilot ...###
+    pilot = torch.zeros((M,1), dtype=torch.cdouble) if K>2 else torch.zeros(M)
+    pilot[0,0] = psk_mod(torch.randint(1, size=[int(logK)]), K)
 
     for i in range(cols):
         bits_in = torch.randint(2, size=[bit_len])
         
         if K==1 or K==2:
             beta0 = torch.zeros(N)    #length of msg_vector = 1000 * 32 = 32000
+            
         else:
             beta0 = torch.zeros(N, dtype=torch.cdouble)
-
+            
         for l in range(L):
-            # if l == 0:
-            #     bits_sec = torch.zeros(logM)
             bits_sec = bits_in[l*sec_size : l*sec_size + logM]  # logM bits used for selection the location of non-zero values
             assert 0<logM<64
             idx = bits_sec.dot(1 << torch.flip(torch.arange(logM),[0,]))
@@ -113,8 +117,9 @@ def gen_msg_mod_torch(code_params,cols):
                 val = psk_mod(bits_mod_sec, K)
 
             beta0[l*int(M) + idx] = val      # will make a 1 at the decimal equivalent in the l-th section
-        
+            
         beta[:,i] = beta0
-
+    beta1 = beta.clone()
+    beta1[:M,:] = pilot.repeat(1,cols)    
     c = psk_constel(K)    
-    return beta,c
+    return beta,beta1,c

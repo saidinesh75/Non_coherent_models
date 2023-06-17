@@ -1,6 +1,5 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # BE QUIET!!!! (info and warnings are not printed)
-
 import numpy as np 
 import matplotlib.pyplot as plt
 dir_name = "/home/dinesh/Research_work/Non_coherent_models/POMP/POMP_figures/"
@@ -19,6 +18,7 @@ import torch
 from gen_msg_mod_torch import gen_msg_mod_torch
 # from amp_demod_torch2 import amp_demod_torch2
 from ParallelOMP_demod import ParallelOMP_demod
+from ParallelOMP_demodnc import ParallelOMP_demodnc
 
 import pandas as pd
 
@@ -102,16 +102,18 @@ for i in range(n):
 A = A.to(device)
 
 sections = torch.Tensor([8])               # Number of Sections
-EbN0_dB = torch.arange(0,8,2)
+EbN0_dB = torch.arange(0,11,2)
 paths=2
 number_of_seeds=math.floor(math.sqrt(n))
 randomPhase = 0
 
-cols = 100
+cols = 1000
 itr = 10
 
 sec_err_ebno = torch.zeros([torch.numel(sections),torch.numel(EbN0_dB)])
 block_err_ebno = torch.zeros([torch.numel(sections),torch.numel(EbN0_dB)])
+sec_err_ebno1 = torch.zeros([torch.numel(sections),torch.numel(EbN0_dB)])
+block_err_ebno1 = torch.zeros([torch.numel(sections),torch.numel(EbN0_dB)])
 
 for l in range(torch.numel(sections)):
     L = int(sections[l].item())
@@ -174,37 +176,48 @@ for l in range(torch.numel(sections)):
         R_actual = bit_len / n      # Actual rate
         code_params.update({'n':n, 'R_actual':R_actual})
         
+        # initialisation
         sec_err_sum = 0 
         blk_err_sum = 0 
-        
+        sec_err_sum1 = 0 
+        blk_err_sum1 = 0 
+
         code_params.update({'no_paths':number_of_paths,
                             'no_seeds':number_of_seeds,
                             })
         
         for p in range(itr):
-            beta,c = gen_msg_mod_torch(code_params,cols)
+            beta,beta1,c = gen_msg_mod_torch(code_params,cols)
             # beta_c = pilot(beta,delim)
             beta = beta.to(device)
+            beta1 = beta1.to(device)
             c = c.to(device)
 
-            # For testing puropse
-            # beta_csv = pd.read_csv("/home/saidinesh/Research_work/Modulated_SPARCs/debug_csv_files/beta.csv", sep=",", header=None)
-            # beta_np = beta_csv.applymap(lambda s: complex(s.replace('i', 'j'))).values
-            # beta =  torch.from_numpy(beta_np).type(torch.cdouble).to(device)
-            x = torch.mm(A,beta)
-            y = awgn_channel(x,awgn_var,cols,K,rand_seed=None)
+            # x = torch.mm(A,beta)
+            # y = awgn_channel(x,awgn_var,cols,K,rand_seed=None)
 
-            sec_err_rate, blk_err_rate = ParallelOMP_demod(beta, y, A, code_params, c, delim, cols, BTB)
-            sec_err_sum = sec_err_sum + sec_err_rate
-            blk_err_sum = blk_err_sum + blk_err_rate
+            x1 = torch.mm(A,beta1)
+            # y1 = awgn_channel(x1,awgn_var,cols,K,rand_seed=None)
+
+            # sec_err_rate, blk_err_rate = ParallelOMP_demod(beta, y, A, code_params, c, delim, cols, BTB)
+            # sec_err_sum = sec_err_sum + sec_err_rate
+            # blk_err_sum = blk_err_sum + blk_err_rate
+
+            sec_err_rate1, blk_err_rate1 = ParallelOMP_demodnc(beta1, x1, A, code_params, c, delim, cols, BTB)
+            # sec_err_sum1 = sec_err_sum1 + sec_err_rate1
+            # blk_err_sum1 = blk_err_sum1 + blk_err_rate1
 
         sec_err_ebno[l,e] = sec_err_sum/itr
         block_err_ebno[l,e] = blk_err_sum/itr
+
+        # sec_err_ebno1[l,e] = sec_err_sum/itr
+        # block_err_ebno1[l,e] = blk_err_sum/itr
 
 np.savetxt("/home/dinesh/Research_work/Non_coherent_models/POMP/POMP_results_csv/SER_1e6.csv", sec_err_ebno.cpu().numpy(), delimiter=",", fmt="%.5e")
 
 fig, ax = plt.subplots()
 ax.plot(EbN0_dB, sec_err_ebno[0,:],label='L=8')
+# ax.plot(EbN0_dB, sec_err_ebno1[0,:],label='L=8')
 plt.legend(loc="upper right")
 ax.set_yscale('log')
 ax.set_title('Avg_Section_error_rate vs Eb/N0 for POMP')

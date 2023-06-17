@@ -7,7 +7,7 @@ from scipy.io import loadmat
 import numpy as np
 import math
 
-y_data = loadmat("/home/dinesh/Research_work/Non_coherent_models/POMP/rx_signal.mat")
+# y_data = loadmat("/home/dinesh/Research_work/Non_coherent_models/POMP/rx_signal.mat")
 
 def psdemod(x,c):
     out = torch.zeros(torch.numel(x),dtype=torch.cdouble)
@@ -61,14 +61,16 @@ def ParallelOMP_demod(beta, y_cols, A, code_params, c, delim, cols, BTB):
     blk_err = 0
     for q in range(cols):
         y = y_cols[:,q].reshape(-1,1)
+
         # Using a pre-determined message just for testing
+        # y_data = loadmat("/home/dinesh/Research_work/Non_coherent_models/POMP/rx_signal.mat")
         # y_ = np.array(y_data['rx_signal'])
         # y = torch.from_numpy(y_).reshape(-1,1).type(torch.cdouble).to(device)
 
         innerProducts = (A.T.conj()).matmul(y)
         innerProducts_withSymbols = innerProducts.matmul(c.reshape(1,-1).conj())
         innerProductsLong = (innerProducts_withSymbols.T).reshape(-1,1)
-
+        
         _,seed_loc1=torch.topk(torch.real(innerProducts),number_of_paths,dim=0)
         _,seed_max_abs_col=torch.topk(torch.abs(innerProducts),number_of_paths,dim=0)        
         _,seed_loc2=torch.topk(torch.abs(innerProductsLong),number_of_paths,dim=0)
@@ -101,7 +103,7 @@ def ParallelOMP_demod(beta, y_cols, A, code_params, c, delim, cols, BTB):
 
             selected_column_matrix[:,p]=torch.cat(rx_columns)
             selected_integer_matrix[:,p]=pskmod(rx_symbols,K).reshape([-1,])   
-        min_residue_loc=torch.argmin(torch.norm(residue))
+        min_residue_loc=torch.argmin(torch.norm(residue,dim=0))
         rx_columns=selected_column_matrix[:,min_residue_loc]
         rx_integers=selected_integer_matrix[:,min_residue_loc]
 
@@ -117,10 +119,6 @@ def ParallelOMP_demod(beta, y_cols, A, code_params, c, delim, cols, BTB):
     # print("Done")
 
     return sec_err_rate, blk_err_rate
-
-
-
-
 
     '''
 def tsolve(A,b):
